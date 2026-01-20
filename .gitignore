@@ -1,6 +1,9 @@
 # Large data files (hosted on R2)
 *.pmtiles
 
+# Project context (local only)
+CLAUDE.md
+
 # Logs
 logs
 *.log
