@@ -424,7 +424,13 @@ function App() {
           <div className="timeline-controls">
             <button
               className={`play-btn ${isPlaying ? 'playing' : ''}`}
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={() => {
+                // If at the end, restart from beginning
+                if (!isPlaying && timeValue >= maxTimestamp) {
+                  setTimeValue(minTimestamp);
+                }
+                setIsPlaying(!isPlaying);
+              }}
               aria-label={isPlaying ? 'Pause' : 'Play'}
             />
             <button

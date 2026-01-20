@@ -370,8 +370,9 @@ html, body, #root, .App {
 /* Pause icon (two bars) */
 .play-btn.playing::before {
   transform: translate(-50%, -50%);
+  left: calc(50% - 4px);
   width: 4px;
-  height: 16px;
+  height: 14px;
   border: none;
   background: white;
   border-radius: 1px;
@@ -380,11 +381,11 @@ html, body, #root, .App {
 .play-btn.playing::after {
   content: '';
   position: absolute;
-  left: calc(50% + 5px);
+  left: calc(50% + 4px);
   top: 50%;
   transform: translate(-50%, -50%);
   width: 4px;
-  height: 16px;
+  height: 14px;
   background: white;
   border-radius: 1px;
 }
