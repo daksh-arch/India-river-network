@@ -49,8 +49,8 @@ const GLOBAL_MAX_TIMESTAMP = 1704372500;
 function App() {
   const mapContainer = useRef(null);
   const map = useRef(null);
-  const [lng] = useState(77.5946);
-  const [lat] = useState(12.9716);
+  const [lng] = useState(82);
+  const [lat] = useState(24);
   const [zoom] = useState(5);
 
   // Dynamic timestamp range based on selected watersheds
