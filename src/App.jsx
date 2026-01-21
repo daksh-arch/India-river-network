@@ -167,7 +167,7 @@ function App() {
       zoom: zoom,
       minZoom: 3,
       maxZoom: 12,
-      attributionControl: false,
+
 
 
       antialias: false,
@@ -196,7 +196,7 @@ function App() {
       : `${window.location.origin}/rivers.pmtiles`;
 
     map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
-    map.current.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+
 
     map.current.on('load', () => {
       map.current.addSource('rivers-data', {
