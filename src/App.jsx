@@ -62,6 +62,7 @@ function App() {
   const [isCalculatingRange, setIsCalculatingRange] = useState(false);
 
   const [selectedWatersheds, setSelectedWatersheds] = useState(watershedNames);
+  const [hoveredWatershed, setHoveredWatershed] = useState(null);
   const [isInfoOpen, setIsInfoOpen] = useState(true);
   const [isWatershedOpen, setIsWatershedOpen] = useState(true);
 
@@ -131,6 +132,11 @@ function App() {
 
   const handleReset = () => {
     setTimeValue(minTimestamp);
+    setIsPlaying(false);
+  };
+
+  const handleSkipToEnd = () => {
+    setTimeValue(maxTimestamp);
     setIsPlaying(false);
   };
 
@@ -215,6 +221,37 @@ function App() {
         maxzoom: 14
       });
 
+      // Add basin polygons source for hover highlighting
+      map.current.addSource('basins-data', {
+        type: 'geojson',
+        data: `${window.location.origin}/basins.geojson`
+      });
+
+      // Basin highlight fill layer (renders below rivers)
+      map.current.addLayer({
+        id: 'basin-highlight',
+        type: 'fill',
+        source: 'basins-data',
+        paint: {
+          'fill-color': '#4dd0e1',
+          'fill-opacity': 0.15
+        },
+        filter: ['==', ['get', 'ba_name'], '']  // Initially hidden
+      });
+
+      // Basin highlight outline
+      map.current.addLayer({
+        id: 'basin-highlight-outline',
+        type: 'line',
+        source: 'basins-data',
+        paint: {
+          'line-color': '#4dd0e1',
+          'line-width': 1.5,
+          'line-opacity': 0.5
+        },
+        filter: ['==', ['get', 'ba_name'], '']  // Initially hidden
+      });
+
       map.current.addLayer({
         id: 'rivers-layer',
         type: 'line',
@@ -283,6 +320,19 @@ function App() {
       }
     };
   }, [selectedWatersheds, updateTimestampRange]);
+
+  // Update highlight layer when hovering over watersheds
+  useEffect(() => {
+    if (!map.current || !map.current.isStyleLoaded()) return;
+    if (!map.current.getLayer('basin-highlight') || !map.current.getLayer('basin-highlight-outline')) return;
+
+    const filter = hoveredWatershed
+      ? ['==', ['get', 'ba_name'], hoveredWatershed]
+      : ['==', ['get', 'ba_name'], ''];  // Hide highlight
+
+    map.current.setFilter('basin-highlight', filter);
+    map.current.setFilter('basin-highlight-outline', filter);
+  }, [hoveredWatershed]);
 
   // Throttled filter update to reduce GPU load during animation
   const lastFilterUpdate = useRef(0);
@@ -362,8 +412,8 @@ function App() {
       </div>
 
       {/* Watershed Panel - Top Right */}
-      <div className="panel watershed-panel">
-        <div className="panel-header" onClick={() => setIsWatershedOpen(!isWatershedOpen)}>
+      <div className="panel watershed-panel" onMouseLeave={() => setHoveredWatershed(null)}>
+        <div className="panel-header" onClick={() => { setIsWatershedOpen(!isWatershedOpen); setHoveredWatershed(null); }}>
           <div className="panel-title">
             <LayersIcon />
             <h3>Watersheds</h3>
@@ -400,8 +450,10 @@ function App() {
             {watershedNames.map(name => (
               <div
                 key={name}
-                className={`watershed-item ${selectedWatersheds.includes(name) ? 'selected' : ''}`}
+                className={`watershed-item ${selectedWatersheds.includes(name) ? 'selected' : ''} ${hoveredWatershed === name ? 'hovered' : ''}`}
                 onClick={() => handleWatershedToggle(name)}
+                onMouseEnter={() => setHoveredWatershed(name)}
+                onMouseLeave={() => setHoveredWatershed(null)}
               >
                 <label className="toggle-switch" onClick={(e) => e.stopPropagation()}>
                   <input
@@ -436,8 +488,14 @@ function App() {
             <button
               className="reset-btn"
               onClick={handleReset}
-              title="Reset to start"
-              aria-label="Reset"
+              title="Skip to start"
+              aria-label="Skip to start"
+            />
+            <button
+              className="skip-end-btn"
+              onClick={handleSkipToEnd}
+              title="Skip to end"
+              aria-label="Skip to end"
             />
             <div className="speed-controls">
               {[0.5, 1, 2, 4].map(speed => (

@@ -259,6 +259,16 @@ html, body, #root, .App {
   background: rgba(88, 166, 255, 0.08);
 }
 
+.watershed-item.hovered {
+  background: rgba(77, 208, 225, 0.12);
+  border-left: 2px solid var(--accent);
+  padding-left: 14px;
+}
+
+.watershed-item.hovered .watershed-name {
+  color: var(--accent);
+}
+
 /* Custom Toggle Switch */
 .toggle-switch {
   position: relative;
@@ -448,6 +458,58 @@ html, body, #root, .App {
 
 .reset-btn:hover::after {
   border-color: transparent var(--text-primary) transparent transparent;
+}
+
+/* Skip to end button (mirror of reset) */
+.skip-end-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--panel-border);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+/* Skip to end icon (triangle with vertical bar on right) */
+.skip-end-btn::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-90%, -50%);
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 6px 0 6px 10px;
+  border-color: transparent transparent transparent var(--text-secondary);
+  transition: border-color 0.2s ease;
+}
+
+.skip-end-btn::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(80%, -50%);
+  width: 3px;
+  height: 12px;
+  background: var(--text-secondary);
+  border-radius: 1px;
+  transition: background 0.2s ease;
+}
+
+.skip-end-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.skip-end-btn:hover::before {
+  border-color: transparent transparent transparent var(--text-primary);
+}
+
+.skip-end-btn:hover::after {
+  background: var(--text-primary);
 }
 
 .speed-controls {
