@@ -4,15 +4,41 @@ import './App.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Protocol } from "pmtiles";
 
-const watershedNames = [
-  "Area of Inland drainage in Rajasthan", "Barak and Others", "Brahamaputra",
-  "Brahmani and Baitarni", "Cauvery", "East flowing rivers between Mahanadi and Pennar",
-  "East flowing rivers between Pennar and Kanyakumari", "Ganga", "Godavari",
-  "Indus (Up to border)", "Krishna", "Mahanadi", "Mahi",
-  "Minor rivers draining into Myanmar and Bangladesh", "Narmada", "Pennar",
-  "Sabarmati", "Subernarekha", "Tapi", "West flowing rivers from Tadri to Kanyakumari",
-  "West flowing rivers from Tapi to Tadri", "West flowing rivers of Kutch and Saurashtra including Luni"
-];
+// Watershed categories grouped by geography
+const watershedCategories = {
+  "Himalayan Rivers": [
+    "Ganga",
+    "Indus (Up to border)",
+    "Brahamaputra",
+    "Barak and Others"
+  ],
+  "Peninsular Rivers": [
+    "Godavari",
+    "Krishna",
+    "Cauvery",
+    "Mahanadi",
+    "Narmada",
+    "Tapi",
+    "Pennar",
+    "Brahmani and Baitarni",
+    "Subernarekha",
+    "Mahi",
+    "Sabarmati"
+  ],
+  "Coastal Rivers": [ // Renamed from "Coastal & Regional"
+    "East flowing rivers between Mahanadi and Pennar",
+    "East flowing rivers between Pennar and Kanyakumari",
+    "West flowing rivers from Tadri to Kanyakumari",
+    "West flowing rivers from Tapi to Tadri"
+  ],
+  "Rajasthan & Gujarat": [ // New category
+    "West flowing rivers of Kutch and Saurashtra including Luni",
+    "Area of Inland drainage in Rajasthan"
+  ]
+};
+
+// Flat list of all watershed names (for filtering)
+const watershedNames = Object.values(watershedCategories).flat();
 
 // Global timestamp bounds (full data range)
 const GLOBAL_MIN_TIMESTAMP = 1704067260;
@@ -88,7 +114,6 @@ function App() {
   const [timeValue, setTimeValue] = useState(GLOBAL_MIN_TIMESTAMP);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isCalculatingRange, setIsCalculatingRange] = useState(false);
-
   const [selectedWatersheds, setSelectedWatersheds] = useState(watershedNames);
   const [hoveredWatershed, setHoveredWatershed] = useState(null);
   const [mapReady, setMapReady] = useState(false);
@@ -97,6 +122,31 @@ function App() {
   const [isWatershedDrawerOpen, setIsWatershedDrawerOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [showWatershedPulse, setShowWatershedPulse] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState([]); // All collapsed by default
+
+  // Toggle category expansion
+  const toggleCategory = (category) => {
+    setExpandedCategories(prev =>
+      prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    );
+  };
+
+  // Toggle all watersheds in a category
+  const toggleCategoryWatersheds = (category, e) => {
+    e.stopPropagation();
+    const categoryWatersheds = watershedCategories[category];
+    const allSelected = categoryWatersheds.every(w => selectedWatersheds.includes(w));
+
+    if (allSelected) {
+      // Deselect all in this category
+      setSelectedWatersheds(prev => prev.filter(w => !categoryWatersheds.includes(w)));
+    } else {
+      // Select all in this category
+      setSelectedWatersheds(prev => [...new Set([...prev, ...categoryWatersheds])]);
+    }
+  };
 
   // Tooltip state for river click
   const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, text: '' });
@@ -108,12 +158,12 @@ function App() {
     // Start animation after a brief delay
     setTimeout(() => {
       setIsPlaying(true);
-      // Show watershed pulse after animation completes (12 seconds)
+      // Show watershed pulse after animation completes (15 seconds)
       setTimeout(() => {
         setShowWatershedPulse(true);
-        // Hide pulse after 4 seconds
-        setTimeout(() => setShowWatershedPulse(false), 4000);
-      }, 12000);
+        // Hide pulse after 6 seconds (4 complete 1.5s pulse cycles)
+        setTimeout(() => setShowWatershedPulse(false), 6000);
+      }, 15000);
     }, 300);
   }, []);
 
@@ -132,42 +182,65 @@ function App() {
     }
 
     if (selectedWatersheds.length === 0) {
+      // Set a non-animating state if nothing is selected
+      setMinTimestamp(GLOBAL_MIN_TIMESTAMP);
+      setMaxTimestamp(GLOBAL_MIN_TIMESTAMP + 1); // Avoids division by zero
+      setTimeValue(GLOBAL_MIN_TIMESTAMP);
+      setIsPlaying(false);
       return;
     }
 
     setIsCalculatingRange(true);
 
-    const features = map.current.querySourceFeatures('rivers-data', {
-      sourceLayer: 'rivers_for_web'
-    });
-
-    if (features.length === 0) {
-      setIsCalculatingRange(false);
-      return;
-    }
-
-    let newMin = Infinity;
-    let newMax = -Infinity;
-
-    features.forEach(feature => {
-      const basinName = feature.properties?.ba_name;
-      const timestamp = feature.properties?.timestamp;
-
-      if (selectedWatersheds.includes(basinName) && timestamp !== undefined) {
-        if (timestamp < newMin) newMin = timestamp;
-        if (timestamp > newMax) newMax = timestamp;
+    // Use a slight delay to allow the map to process the filter change first
+    setTimeout(() => {
+      if (!map.current) {
+        setIsCalculatingRange(false);
+        return;
       }
-    });
+      
+      const features = map.current.querySourceFeatures('rivers-data', {
+        sourceLayer: 'rivers',
+        filter: ['in', ['get', 'ba_name'], ['literal', selectedWatersheds]]
+      });
 
-    if (newMin !== Infinity && newMax !== -Infinity && newMin < newMax) {
-      setMinTimestamp(newMin);
-      setMaxTimestamp(newMax);
-      setTimeValue(newMin);
-      setIsPlaying(false);
-    }
+      if (features.length === 0) {
+        setIsCalculatingRange(false);
+        return;
+      }
 
-    setIsCalculatingRange(false);
+      let newMin = Infinity;
+      let newMax = -Infinity;
+
+      features.forEach(feature => {
+        const timestamp = feature.properties?.timestamp;
+        if (timestamp !== undefined) {
+          if (timestamp < newMin) newMin = timestamp;
+          if (timestamp > newMax) newMax = timestamp;
+        }
+      });
+      
+      if (newMin !== Infinity && newMax !== -Infinity && newMin < newMax) {
+        setMinTimestamp(newMin);
+        setMaxTimestamp(newMax);
+        setTimeValue(newMin);
+        setIsPlaying(false);
+      } else {
+        // Fallback if no valid range found
+        setMinTimestamp(GLOBAL_MIN_TIMESTAMP);
+        setMaxTimestamp(GLOBAL_MAX_TIMESTAMP);
+        setTimeValue(GLOBAL_MIN_TIMESTAMP);
+      }
+      
+      setIsCalculatingRange(false);
+    }, 100); // A small delay can help ensure features are available after a filter change
   }, [selectedWatersheds]);
+
+  // Update timestamp range when watershed selection changes
+  useEffect(() => {
+    if (!hasEnteredMap) return; // Don't run on initial load
+    updateTimestampRange();
+  }, [selectedWatersheds, hasEnteredMap]);
 
   const handleWatershedToggle = (name) => {
     setSelectedWatersheds(prev =>
@@ -198,9 +271,8 @@ function App() {
     ? ((timeValue - minTimestamp) / (maxTimestamp - minTimestamp)) * 100
     : 0;
 
-  // Animation loop - use absolute time for consistent 7-second duration
+  // Animation loop - use absolute time for consistent 12-second duration
   const animationStartTime = useRef(null);
-  const animationStartValue = useRef(null);
   const timeValueRef = useRef(timeValue);
 
   // Keep ref in sync with state
@@ -209,35 +281,43 @@ function App() {
   }, [timeValue]);
 
   useEffect(() => {
-    if (!isPlaying) {
+    if (!isPlaying || selectedWatersheds.length === 0) {
       animationStartTime.current = null;
-      animationStartValue.current = null;
+      if (selectedWatersheds.length === 0) setIsPlaying(false);
       return;
     }
 
     let animationFrameId;
-
     const animate = (currentTimestamp) => {
       if (!isPlaying) return;
 
-      // Initialize start time and value on first frame
       if (animationStartTime.current === null) {
         animationStartTime.current = currentTimestamp;
-        animationStartValue.current = timeValueRef.current;
       }
 
-      const duration = 12000; // 12 seconds in milliseconds
-      const elapsedSinceStart = currentTimestamp - animationStartTime.current;
+      const coastalRivers = watershedCategories["Coastal Rivers"]; // Changed key
+      const himalayanRivers = watershedCategories["Himalayan Rivers"];
 
-      // Calculate how far we need to go (from start position to end)
-      const remainingRange = maxTimestamp - animationStartValue.current;
+      const isOnlyCoastalSelected = selectedWatersheds.length === coastalRivers.length &&
+                                  coastalRivers.every(r => selectedWatersheds.includes(r));
+      const isOnlyHimalayanSelected = selectedWatersheds.length === himalayanRivers.length &&
+                                    himalayanRivers.every(r => selectedWatersheds.includes(r));
+
+      let duration;
+      if (selectedWatersheds.length === watershedNames.length) {
+        duration = 15000; // All rivers selected
+      } else if (isOnlyCoastalSelected) {
+        duration = 5000; // Only Coastal Rivers selected (changed from 7s to 5s)
+      } else if (isOnlyHimalayanSelected) {
+        duration = 13000; // Only Himalayan Rivers selected
+      } else {
+        duration = 10000; // Default for other selections
+      }
+      const elapsed = currentTimestamp - animationStartTime.current;
+      const progress = Math.min(elapsed / duration, 1);
+
       const totalRange = maxTimestamp - minTimestamp;
-
-      // Adjust duration proportionally if starting mid-animation
-      const adjustedDuration = duration * (remainingRange / totalRange);
-      const progress = Math.min(elapsedSinceStart / adjustedDuration, 1);
-
-      const newTime = animationStartValue.current + remainingRange * progress;
+      const newTime = minTimestamp + totalRange * progress;
 
       if (progress >= 1) {
         setTimeValue(maxTimestamp);
@@ -255,8 +335,14 @@ function App() {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [isPlaying, minTimestamp, maxTimestamp]);
+  }, [isPlaying, minTimestamp, maxTimestamp, selectedWatersheds.length]);
 
+  // Reset animation when watershed selection changes
+  useEffect(() => {
+    setTimeValue(GLOBAL_MIN_TIMESTAMP);
+    setIsPlaying(false);
+  }, [selectedWatersheds]);
+      
   // Map initialization
   useEffect(() => {
     if (map.current) return;
@@ -268,9 +354,6 @@ function App() {
       zoom: zoom,
       minZoom: 3,
       maxZoom: 12,
-
-
-
       antialias: false,
       fadeDuration: 0,
       trackResize: true,
@@ -293,11 +376,10 @@ function App() {
     });
 
     const pmtilesUrl = import.meta.env.PROD
-      ? 'https://pub-c2e50f4332a34bc1ad4b621cf701719a.r2.dev/rivers.pmtiles'
-      : `${window.location.origin}/rivers.pmtiles`;
+      ? 'https://pub-c2e50f4332a34bc1ad4b621cf701719a.r2.dev/more_detail_rivers.pmtiles'
+      : `${window.location.origin}/more_detail_rivers.pmtiles`;
 
     map.current.addControl(new maplibregl.NavigationControl(), 'top-right');
-
 
     map.current.on('load', () => {
       map.current.addSource('rivers-data', {
@@ -339,7 +421,7 @@ function App() {
         id: 'rivers-layer',
         type: 'line',
         source: 'rivers-data',
-        'source-layer': 'rivers_for_web',
+        'source-layer': 'rivers',
         layout: { 'line-join': 'round', 'line-cap': 'round' },
         paint: {
           'line-color': [
@@ -366,7 +448,7 @@ function App() {
         },
         filter: [
           'all',
-          ['<=', ['get', 'timestamp'], GLOBAL_MAX_TIMESTAMP],
+          ['<=', ['get', 'timestamp'], GLOBAL_MIN_TIMESTAMP],
           ['in', ['get', 'ba_name'], ['literal', watershedNames]]
         ]
       });
@@ -407,27 +489,6 @@ function App() {
     });
   }, [lng, lat, zoom]);
 
-  // Update timestamp range when watershed selection changes
-  useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded()) return;
-
-    const timeoutId = setTimeout(() => {
-      updateTimestampRange();
-    }, 300);
-
-    const handleIdle = () => {
-      updateTimestampRange();
-    };
-    map.current.once('idle', handleIdle);
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (map.current) {
-        map.current.off('idle', handleIdle);
-      }
-    };
-  }, [selectedWatersheds, updateTimestampRange]);
-
   // Basin highlight functions - only work when drawer is open
   const showBasinHighlight = (basinName) => {
     if (!mapReady || !map.current || !isWatershedDrawerOpen) return;
@@ -462,34 +523,23 @@ function App() {
   }, [timeValue, selectedWatersheds]);
 
   useEffect(() => {
-    if (!map.current) return;
-
-    const applyFilter = () => {
-      if (!map.current.isStyleLoaded() || !map.current.getLayer('rivers-layer')) return;
-
-      const filter = [
-        'all',
-        ['<=', ['get', 'timestamp'], filterRef.current.timeValue],
-        ['in', ['get', 'ba_name'], ['literal', filterRef.current.selectedWatersheds]]
-      ];
-
-      map.current.setFilter('rivers-layer', filter);
-    };
+    if (!map.current || !map.current.isStyleLoaded() || !map.current.getLayer('rivers-layer')) return;
 
     const now = Date.now();
-    if (isPlaying && now - lastFilterUpdate.current < 50) return;
+    // Throttle filter updates during animation (60ms intervals)
+    if (isPlaying && now - lastFilterUpdate.current < 60) return;
     lastFilterUpdate.current = now;
 
-    applyFilter();
+    // Add buffer to timeValue to ensure all rivers (especially coastal) are included
+    const timeWithBuffer = filterRef.current.timeValue + 100;
 
-    const onIdle = () => applyFilter();
-    map.current.once('idle', onIdle);
+    const filter = [
+      'all',
+      ['<=', ['get', 'timestamp'], timeWithBuffer],
+      ['in', ['get', 'ba_name'], ['literal', filterRef.current.selectedWatersheds]]
+    ];
 
-    return () => {
-      if (map.current) {
-        map.current.off('idle', onIdle);
-      }
-    };
+    map.current.setFilter('rivers-layer', filter);
   }, [timeValue, selectedWatersheds, isPlaying]);
 
   // Close panels when clicking outside
@@ -535,18 +585,45 @@ function App() {
           <button onClick={() => setSelectedWatersheds([])}>None</button>
         </div>
         <div className="watershed-list">
-          {watershedNames.map(name => (
-            <div
-              key={name}
-              className={`watershed-item ${selectedWatersheds.includes(name) ? 'selected' : ''} ${hoveredWatershed === name ? 'hovered' : ''}`}
-              onClick={() => handleWatershedToggle(name)}
-              onMouseEnter={() => handleWatershedHover(name)}
-              onMouseLeave={handleWatershedLeave}
-            >
-              <span className={`checkbox ${selectedWatersheds.includes(name) ? 'checked' : ''}`} />
-              <span className="watershed-name">{name}</span>
-            </div>
-          ))}
+          {Object.entries(watershedCategories).map(([category, rivers]) => {
+            const isExpanded = expandedCategories.includes(category);
+            const allSelected = rivers.every(r => selectedWatersheds.includes(r));
+            const someSelected = rivers.some(r => selectedWatersheds.includes(r));
+
+            return (
+              <div key={category} className="watershed-category">
+                <div
+                  className={`category-header ${isExpanded ? 'expanded' : ''}`}
+                  onClick={() => toggleCategory(category)}
+                >
+                  <span className={`category-arrow ${isExpanded ? 'expanded' : ''}`}>›</span>
+                  <span
+                    className={`checkbox ${allSelected ? 'checked' : ''} ${someSelected && !allSelected ? 'partial' : ''}`}
+                    onClick={(e) => toggleCategoryWatersheds(category, e)}
+                  />
+                  <span className="category-name">{category}</span>
+                  <span className="category-count">{rivers.filter(r => selectedWatersheds.includes(r)).length}/{rivers.length}</span>
+                </div>
+                {isExpanded && (
+                  <div className="category-rivers">
+                    {rivers.map(name => (
+                      <div
+                        key={name}
+                        className={`watershed-item ${selectedWatersheds.includes(name) ? 'selected' : ''} ${hoveredWatershed === name ? 'hovered' : ''}`}
+                        onClick={() => handleWatershedToggle(name)}
+                        onMouseEnter={() => handleWatershedHover(name)}
+                        onMouseLeave={handleWatershedLeave}
+                      >
+                        <span className={`checkbox ${selectedWatersheds.includes(name) ? 'checked' : ''}`} />
+                        <span className="watershed-name">{name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
         </div>
       </div>
 
@@ -606,6 +683,8 @@ function App() {
           <button
             className={`play-btn ${isPlaying ? 'playing' : ''}`}
             onClick={() => {
+              // Don't allow play if no watersheds selected
+              if (selectedWatersheds.length === 0) return;
               if (!isPlaying && timeValue >= maxTimestamp) {
                 setTimeValue(minTimestamp);
               }
@@ -615,7 +694,7 @@ function App() {
           <div className="timeline-track">
             <div
               className="timeline-progress"
-              style={{ width: `${progressPercent}%` }}
+              style={{ transform: `translateY(-50%) scaleX(${progressPercent / 100})` }}
             />
             <input
               type="range"
