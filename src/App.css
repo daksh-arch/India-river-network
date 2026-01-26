@@ -31,6 +31,251 @@ html, body, #root, .App {
   width: 100%;
 }
 
+.map-container.hidden {
+  opacity: 0;
+}
+
+/* ===== INTRO SCREEN ===== */
+.intro-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: linear-gradient(135deg, #0a0a0a 0%, #0d1117 25%, #0f1a24 50%, #0d1117 75%, #0a0a0a 100%);
+  background-size: 400% 400%;
+  animation: gradientFlow 15s ease infinite;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  overflow: hidden;
+}
+
+.intro-screen::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 40%, rgba(30, 90, 126, 0.15) 0%, transparent 50%),
+    radial-gradient(ellipse 60% 40% at 80% 60%, rgba(33, 150, 184, 0.1) 0%, transparent 50%),
+    radial-gradient(ellipse 50% 30% at 50% 80%, rgba(79, 195, 199, 0.08) 0%, transparent 50%);
+  animation: gradientPulse 8s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes gradientFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes gradientPulse {
+  0% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+.intro-content {
+  max-width: 580px;
+  text-align: center;
+  animation: introFadeIn 0.8s ease-out;
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes introFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.intro-title {
+  font-size: clamp(48px, 10vw, 72px);
+  font-weight: 300;
+  letter-spacing: -0.03em;
+  color: var(--text-primary);
+  margin: 0 0 20px 0;
+  line-height: 1.1;
+}
+
+.intro-description {
+  font-size: 18px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  margin: 0 0 40px 0;
+  font-weight: 400;
+}
+
+.intro-instructions {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 48px;
+  text-align: left;
+}
+
+.instruction-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.instruction-icon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+/* Mini layers icon for intro instructions */
+.icon-layers-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: center;
+}
+
+.icon-layers-mini span {
+  display: block;
+  height: 1.5px;
+  background: var(--text-secondary);
+  border-radius: 1px;
+}
+
+.icon-layers-mini span:nth-child(1) {
+  width: 5px;
+}
+
+.icon-layers-mini span:nth-child(2) {
+  width: 9px;
+}
+
+.icon-layers-mini span:nth-child(3) {
+  width: 13px;
+}
+
+.intro-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px 48px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #0a0a0a;
+  background: var(--text-primary);
+  border: none;
+  border-radius: 60px;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  min-width: 200px;
+}
+
+.intro-cta:disabled {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--text-muted);
+  cursor: wait;
+}
+
+.intro-cta.ready:hover {
+  transform: scale(1.03);
+  box-shadow: 0 8px 32px rgba(255, 255, 255, 0.15);
+}
+
+.intro-cta.ready:active {
+  transform: scale(0.98);
+}
+
+/* River flow loading animation */
+.loading-river {
+  display: inline-block;
+  width: 24px;
+  height: 4px;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    #4fc3c7 20%,
+    #80deea 50%,
+    #4fc3c7 80%,
+    transparent 100%
+  );
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-river::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.8) 50%,
+    transparent 100%
+  );
+  animation: riverFlow 1.2s ease-in-out infinite;
+}
+
+@keyframes riverFlow {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.intro-footer {
+  position: absolute;
+  bottom: 24px;
+  font-size: 12px;
+  color: var(--text-muted);
+  z-index: 1;
+}
+
+/* Hide elements during intro */
+.intro-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ===== PULSE ANIMATION FOR WATERSHED BUTTON ===== */
+.control-btn.pulse {
+  animation: buttonPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes buttonPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(79, 195, 199, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 12px rgba(79, 195, 199, 0);
+  }
+}
+
 /* ===== BOTTOM CONTROLS CONTAINER ===== */
 .bottom-controls {
   position: fixed;
@@ -669,8 +914,65 @@ html, body, #root, .App {
   filter: invert(1) opacity(1);
 }
 
+/* Attribution control - make smaller and prevent overlap */
+.maplibregl-ctrl-attrib {
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+  background: rgba(0, 0, 0, 0.6) !important;
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+
+.maplibregl-ctrl-attrib a {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+.maplibregl-ctrl-bottom-right {
+  bottom: 8px !important;
+  right: 8px !important;
+}
+
+.maplibregl-ctrl-attrib-button {
+  display: none !important;
+}
+
 /* ===== MOBILE RESPONSIVE ===== */
 @media (max-width: 768px) {
+  .intro-screen {
+    padding: 32px 20px;
+  }
+
+  .intro-title {
+    font-size: clamp(36px, 9vw, 56px);
+    margin-bottom: 16px;
+  }
+
+  .intro-description {
+    font-size: 16px;
+    margin-bottom: 32px;
+  }
+
+  .intro-instructions {
+    margin-bottom: 40px;
+    gap: 12px;
+  }
+
+  .instruction-item {
+    font-size: 13px;
+    gap: 12px;
+  }
+
+  .instruction-icon {
+    width: 26px;
+    height: 26px;
+    font-size: 10px;
+  }
+
+  .intro-cta {
+    padding: 16px 40px;
+    font-size: 15px;
+    min-width: 180px;
+  }
+
   .bottom-controls {
     bottom: 20px;
     gap: 10px;

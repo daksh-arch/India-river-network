@@ -18,6 +18,59 @@ const watershedNames = [
 const GLOBAL_MIN_TIMESTAMP = 1704067260;
 const GLOBAL_MAX_TIMESTAMP = 1704372500;
 
+// IntroScreen Component
+function IntroScreen({ onEnter, isMapReady }) {
+  return (
+    <div className="intro-screen">
+      <div className="intro-content">
+        <h1 className="intro-title">India River Network</h1>
+        <p className="intro-description">
+          An animated visualization of India's river systems flowing from their
+          mountain sources to the ocean.
+        </p>
+
+        <div className="intro-instructions">
+          <div className="instruction-item">
+            <span className="instruction-icon">▶</span>
+            <span>Animation plays automatically — scrub the timeline to explore</span>
+          </div>
+          <div className="instruction-item">
+            <span className="instruction-icon">
+              <span className="icon-layers-mini">
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+            </span>
+            <span>Toggle watersheds to explore different drainage basins</span>
+          </div>
+          <div className="instruction-item">
+            <span className="instruction-icon">?</span>
+            <span>Click info for legend and data sources</span>
+          </div>
+        </div>
+
+        <button
+          className={`intro-cta ${isMapReady ? 'ready' : ''}`}
+          onClick={onEnter}
+          disabled={!isMapReady}
+        >
+          {isMapReady ? 'View Map' : (
+            <>
+              <span className="loading-river"></span>
+              Loading Map
+            </>
+          )}
+        </button>
+      </div>
+
+      <div className="intro-footer">
+        <span>Data: HydroRIVERS & HydroBASINS</span>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const mapContainer = useRef(null);
   const map = useRef(null);
@@ -25,12 +78,15 @@ function App() {
   const [lat] = useState(22.5);
   const [zoom] = useState(4);
 
+  // Intro screen state
+  const [isIntroVisible, setIsIntroVisible] = useState(true);
+  const [hasEnteredMap, setHasEnteredMap] = useState(false);
+
   // Dynamic timestamp range based on selected watersheds
   const [minTimestamp, setMinTimestamp] = useState(GLOBAL_MIN_TIMESTAMP);
   const [maxTimestamp, setMaxTimestamp] = useState(GLOBAL_MAX_TIMESTAMP);
   const [timeValue, setTimeValue] = useState(GLOBAL_MIN_TIMESTAMP);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [animationSpeed] = useState(1);
   const [isCalculatingRange, setIsCalculatingRange] = useState(false);
 
   const [selectedWatersheds, setSelectedWatersheds] = useState(watershedNames);
@@ -40,9 +96,26 @@ function App() {
   // UI State
   const [isWatershedDrawerOpen, setIsWatershedDrawerOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
+  const [showWatershedPulse, setShowWatershedPulse] = useState(false);
 
   // Tooltip state for river click
   const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, text: '' });
+
+  // Handle entering the map from intro screen
+  const handleEnterMap = useCallback(() => {
+    setIsIntroVisible(false);
+    setHasEnteredMap(true);
+    // Start animation after a brief delay
+    setTimeout(() => {
+      setIsPlaying(true);
+      // Show watershed pulse after animation completes (12 seconds)
+      setTimeout(() => {
+        setShowWatershedPulse(true);
+        // Hide pulse after 4 seconds
+        setTimeout(() => setShowWatershedPulse(false), 4000);
+      }, 12000);
+    }, 300);
+  }, []);
 
   // Function to query features and find timestamp range for selected watersheds
   const updateTimestampRange = useCallback(() => {
@@ -106,6 +179,7 @@ function App() {
   const openWatershedDrawer = () => {
     setIsAboutOpen(false);
     setIsWatershedDrawerOpen(true);
+    setShowWatershedPulse(false); // Stop pulse when user clicks
   };
 
   const openAbout = () => {
@@ -124,37 +198,64 @@ function App() {
     ? ((timeValue - minTimestamp) / (maxTimestamp - minTimestamp)) * 100
     : 0;
 
-  // Animation loop
+  // Animation loop - use absolute time for consistent 7-second duration
+  const animationStartTime = useRef(null);
+  const animationStartValue = useRef(null);
+  const timeValueRef = useRef(timeValue);
+
+  // Keep ref in sync with state
   useEffect(() => {
+    timeValueRef.current = timeValue;
+  }, [timeValue]);
+
+  useEffect(() => {
+    if (!isPlaying) {
+      animationStartTime.current = null;
+      animationStartValue.current = null;
+      return;
+    }
+
     let animationFrameId;
-    let lastTimestamp = null;
+
     const animate = (currentTimestamp) => {
-      if (!lastTimestamp) lastTimestamp = currentTimestamp;
-      const elapsed = currentTimestamp - lastTimestamp;
+      if (!isPlaying) return;
 
-      if (isPlaying && map.current && map.current.isStyleLoaded()) {
-        const range = maxTimestamp - minTimestamp;
-        const animationStep = (range / 7) * animationSpeed;
-
-        setTimeValue(prevTime => {
-          let newTime = prevTime + (elapsed / 1000) * animationStep;
-          if (newTime >= maxTimestamp) {
-            newTime = maxTimestamp;
-            setIsPlaying(false);
-          }
-          return newTime;
-        });
+      // Initialize start time and value on first frame
+      if (animationStartTime.current === null) {
+        animationStartTime.current = currentTimestamp;
+        animationStartValue.current = timeValueRef.current;
       }
-      lastTimestamp = currentTimestamp;
-      animationFrameId = requestAnimationFrame(animate);
+
+      const duration = 12000; // 12 seconds in milliseconds
+      const elapsedSinceStart = currentTimestamp - animationStartTime.current;
+
+      // Calculate how far we need to go (from start position to end)
+      const remainingRange = maxTimestamp - animationStartValue.current;
+      const totalRange = maxTimestamp - minTimestamp;
+
+      // Adjust duration proportionally if starting mid-animation
+      const adjustedDuration = duration * (remainingRange / totalRange);
+      const progress = Math.min(elapsedSinceStart / adjustedDuration, 1);
+
+      const newTime = animationStartValue.current + remainingRange * progress;
+
+      if (progress >= 1) {
+        setTimeValue(maxTimestamp);
+        setIsPlaying(false);
+      } else {
+        setTimeValue(newTime);
+        animationFrameId = requestAnimationFrame(animate);
+      }
     };
 
     animationFrameId = requestAnimationFrame(animate);
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
     };
-  }, [isPlaying, animationSpeed, minTimestamp, maxTimestamp]);
+  }, [isPlaying, minTimestamp, maxTimestamp]);
 
   // Map initialization
   useEffect(() => {
@@ -280,11 +381,12 @@ function App() {
             y: e.point.y,
             text: basinName
           });
-          // Auto-hide after 3 seconds
-          setTimeout(() => {
-            setTooltip(prev => ({ ...prev, show: false }));
-          }, 3000);
         }
+      });
+
+      // Hide tooltip on mouse move
+      map.current.on('mousemove', () => {
+        setTooltip(prev => prev.show ? { ...prev, show: false } : prev);
       });
 
       map.current.on('mouseenter', 'rivers-layer', () => {
@@ -405,10 +507,15 @@ function App() {
 
   return (
     <div className="App" onClick={handleMapClick}>
-      <div ref={mapContainer} className="map-container" />
+      {/* Intro Screen */}
+      {isIntroVisible && (
+        <IntroScreen onEnter={handleEnterMap} isMapReady={mapReady} />
+      )}
 
-      {/* River click tooltip */}
-      {tooltip.show && (
+      <div ref={mapContainer} className={`map-container ${isIntroVisible ? 'hidden' : ''}`} />
+
+      {/* River click tooltip - only show after entering map */}
+      {!isIntroVisible && tooltip.show && (
         <div
           className="basin-tooltip"
           style={{ left: tooltip.x, top: tooltip.y }}
@@ -417,8 +524,8 @@ function App() {
         </div>
       )}
 
-      {/* Watershed drawer */}
-      <div className={`watershed-drawer ${isWatershedDrawerOpen ? 'open' : ''}`}>
+      {/* Watershed drawer - only show after entering map */}
+      <div className={`watershed-drawer ${isWatershedDrawerOpen ? 'open' : ''} ${isIntroVisible ? 'intro-hidden' : ''}`}>
         <div className="drawer-header">
           <h3>Watersheds</h3>
           <span className="drawer-count">{selectedWatersheds.length}/{watershedNames.length}</span>
@@ -443,8 +550,8 @@ function App() {
         </div>
       </div>
 
-      {/* About bottom sheet */}
-      <div className={`about-sheet ${isAboutOpen ? 'open' : ''}`}>
+      {/* About bottom sheet - only show after entering map */}
+      <div className={`about-sheet ${isAboutOpen ? 'open' : ''} ${isIntroVisible ? 'intro-hidden' : ''}`}>
         <div className="about-content">
           <h2>India River Network</h2>
           <p>
@@ -476,11 +583,11 @@ function App() {
         </div>
       </div>
 
-      {/* Bottom control bar */}
-      <div className="bottom-controls">
+      {/* Bottom control bar - only show after entering map */}
+      <div className={`bottom-controls ${isIntroVisible ? 'intro-hidden' : ''}`}>
         {/* Watersheds button - left */}
         <button
-          className={`control-btn ${isWatershedDrawerOpen ? 'active' : ''}`}
+          className={`control-btn ${isWatershedDrawerOpen ? 'active' : ''} ${showWatershedPulse ? 'pulse' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
             isWatershedDrawerOpen ? closeAllPanels() : openWatershedDrawer();
