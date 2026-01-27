@@ -522,25 +522,35 @@ function App() {
     filterRef.current = { timeValue, selectedWatersheds };
   }, [timeValue, selectedWatersheds]);
 
-  useEffect(() => {
-    if (!map.current || !map.current.isStyleLoaded() || !map.current.getLayer('rivers-layer')) return;
+  const pendingFilterUpdate = useRef(null);
 
-    const now = Date.now();
-    // Throttle filter updates during animation (60ms intervals)
-    if (isPlaying && now - lastFilterUpdate.current < 60) return;
-    lastFilterUpdate.current = now;
-
-    // Add buffer to timeValue to ensure all rivers (especially coastal) are included
+  const applyFilter = useCallback(() => {
+    if (!map.current || !map.current.getLayer('rivers-layer')) return false;
     const timeWithBuffer = filterRef.current.timeValue + 100;
-
     const filter = [
       'all',
       ['<=', ['get', 'timestamp'], timeWithBuffer],
       ['in', ['get', 'ba_name'], ['literal', filterRef.current.selectedWatersheds]]
     ];
-
     map.current.setFilter('rivers-layer', filter);
-  }, [timeValue, selectedWatersheds, isPlaying]);
+    return true;
+  }, []);
+
+  useEffect(() => {
+    if (!map.current || !map.current.getLayer('rivers-layer')) return;
+
+    const now = Date.now();
+    // Throttle only during animation playback
+    if (isPlaying && now - lastFilterUpdate.current < 60) return;
+    lastFilterUpdate.current = now;
+
+    // Try to apply immediately
+    if (!applyFilter()) {
+      // If map not ready, retry after style loads
+      clearTimeout(pendingFilterUpdate.current);
+      pendingFilterUpdate.current = setTimeout(() => applyFilter(), 50);
+    }
+  }, [timeValue, selectedWatersheds, isPlaying, applyFilter]);
 
   // Close panels when clicking outside
   const handleMapClick = (e) => {

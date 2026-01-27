@@ -1,8 +1,8 @@
 # Large data files (hosted on R2)
 *.pmtiles
 
-# Project context (local only)
-CLAUDE.md
+# Local documentation (not for git)
+.local-docs/
 changes_post.md
 
 # Logs
@@ -14,12 +14,13 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies and build
 node_modules
 dist
 dist-ssr
 *.local
 
-# Editor directories and files
+# Editor and OS files
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -29,4 +30,3 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-tippecanoe/
