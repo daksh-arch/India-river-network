@@ -597,6 +597,14 @@ html, body, #root, .App {
   background: var(--hover-bg);
 }
 
+.category-header.hovered {
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.category-header.hovered .category-name {
+  color: #f59e0b;
+}
+
 .category-arrow {
   font-size: 16px;
   color: var(--text-muted);

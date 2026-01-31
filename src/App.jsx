@@ -116,6 +116,7 @@ function App() {
   const [isCalculatingRange, setIsCalculatingRange] = useState(false);
   const [selectedWatersheds, setSelectedWatersheds] = useState(watershedNames);
   const [hoveredWatershed, setHoveredWatershed] = useState(null);
+  const [hoveredCategory, setHoveredCategory] = useState(null);
   const [mapReady, setMapReady] = useState(false);
 
   // UI State
@@ -264,6 +265,7 @@ function App() {
     setIsWatershedDrawerOpen(false);
     setIsAboutOpen(false);
     setHoveredWatershed(null);
+    setHoveredCategory(null);
     hideBasinHighlight();
   };
 
@@ -411,8 +413,8 @@ function App() {
         source: 'basins-data',
         paint: {
           'line-color': '#ffffff',
-          'line-width': 1,
-          'line-opacity': 0.3
+          'line-width': 0.5,
+          'line-opacity': 0.15
         },
         filter: ['==', ['get', 'ba_name'], '']
       });
@@ -490,9 +492,14 @@ function App() {
   }, [lng, lat, zoom]);
 
   // Basin highlight functions - only work when drawer is open
-  const showBasinHighlight = (basinName) => {
+  const showBasinHighlight = (basinNames) => {
     if (!mapReady || !map.current || !isWatershedDrawerOpen) return;
-    const filter = ['==', ['get', 'ba_name'], basinName];
+
+    // Support both single basin (string) and multiple basins (array)
+    const filter = Array.isArray(basinNames)
+      ? ['in', ['get', 'ba_name'], ['literal', basinNames]]
+      : ['==', ['get', 'ba_name'], basinNames];
+
     map.current.setFilter('basin-highlight', filter);
     map.current.setFilter('basin-highlight-outline', filter);
   };
@@ -506,11 +513,24 @@ function App() {
 
   const handleWatershedHover = (name) => {
     setHoveredWatershed(name);
+    setHoveredCategory(null);
     showBasinHighlight(name);
   };
 
   const handleWatershedLeave = () => {
     setHoveredWatershed(null);
+    hideBasinHighlight();
+  };
+
+  const handleCategoryHover = (category) => {
+    setHoveredCategory(category);
+    setHoveredWatershed(null);
+    const categoryBasins = watershedCategories[category];
+    showBasinHighlight(categoryBasins);
+  };
+
+  const handleCategoryLeave = () => {
+    setHoveredCategory(null);
     hideBasinHighlight();
   };
 
@@ -546,10 +566,16 @@ function App() {
 
     // Try to apply immediately
     if (!applyFilter()) {
-      // If map not ready, retry after style loads
-      clearTimeout(pendingFilterUpdate.current);
-      pendingFilterUpdate.current = setTimeout(() => applyFilter(), 50);
+      // If map not ready, retry on next animation frame (more responsive than setTimeout)
+      if (pendingFilterUpdate.current) cancelAnimationFrame(pendingFilterUpdate.current);
+      pendingFilterUpdate.current = requestAnimationFrame(() => applyFilter());
     }
+
+    return () => {
+      if (pendingFilterUpdate.current) {
+        cancelAnimationFrame(pendingFilterUpdate.current);
+      }
+    };
   }, [timeValue, selectedWatersheds, isPlaying, applyFilter]);
 
   // Close panels when clicking outside
@@ -603,8 +629,10 @@ function App() {
             return (
               <div key={category} className="watershed-category">
                 <div
-                  className={`category-header ${isExpanded ? 'expanded' : ''}`}
+                  className={`category-header ${isExpanded ? 'expanded' : ''} ${hoveredCategory === category ? 'hovered' : ''}`}
                   onClick={() => toggleCategory(category)}
+                  onMouseEnter={() => handleCategoryHover(category)}
+                  onMouseLeave={handleCategoryLeave}
                 >
                   <span className={`category-arrow ${isExpanded ? 'expanded' : ''}`}>›</span>
                   <span
