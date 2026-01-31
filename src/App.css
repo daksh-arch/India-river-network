@@ -30,6 +30,8 @@ html, body, #root, .App {
 .map-container {
   height: 100%;
   width: 100%;
+  background: #0a0a0a;
+  transition: opacity 0.4s ease;
 }
 
 .map-container.hidden {
