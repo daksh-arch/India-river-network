@@ -487,9 +487,17 @@ function App() {
         }
       });
 
+      map.current.resize();
       setMapReady(true);
     });
   }, [lng, lat, zoom]);
+
+  // Resize map when intro is dismissed so the canvas fills the viewport correctly
+  useEffect(() => {
+    if (!isIntroVisible && map.current) {
+      requestAnimationFrame(() => map.current?.resize());
+    }
+  }, [isIntroVisible]);
 
   // Basin highlight functions - only work when drawer is open
   const showBasinHighlight = (basinNames) => {
@@ -544,12 +552,12 @@ function App() {
 
   const pendingFilterUpdate = useRef(null);
 
-  const applyFilter = useCallback(() => {
+  const applyFilter = useCallback((timeOverride) => {
     if (!map.current || !map.current.getLayer('rivers-layer')) return false;
-    const timeWithBuffer = filterRef.current.timeValue + 100;
+    const t = timeOverride !== undefined ? timeOverride : filterRef.current.timeValue;
     const filter = [
       'all',
-      ['<=', ['get', 'timestamp'], timeWithBuffer],
+      ['<=', ['get', 'timestamp'], t],
       ['in', ['get', 'ba_name'], ['literal', filterRef.current.selectedWatersheds]]
     ];
     map.current.setFilter('rivers-layer', filter);
@@ -740,7 +748,10 @@ function App() {
               max={maxTimestamp}
               value={timeValue}
               onChange={(e) => {
-                setTimeValue(parseInt(e.target.value, 10));
+                const val = parseInt(e.target.value, 10);
+                filterRef.current = { ...filterRef.current, timeValue: val };
+                applyFilter(val);
+                setTimeValue(val);
                 setIsPlaying(false);
               }}
             />
