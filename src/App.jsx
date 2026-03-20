@@ -25,13 +25,13 @@ const watershedCategories = {
     "Mahi",
     "Sabarmati"
   ],
-  "Coastal Rivers": [ // Renamed from "Coastal & Regional"
+  "Coastal Rivers": [
     "East flowing rivers between Mahanadi and Pennar",
     "East flowing rivers between Pennar and Kanyakumari",
     "West flowing rivers from Tadri to Kanyakumari",
     "West flowing rivers from Tapi to Tadri"
   ],
-  "Rajasthan & Gujarat": [ // New category
+  "Rajasthan & Gujarat": [
     "West flowing rivers of Kutch and Saurashtra including Luni",
     "Area of Inland drainage in Rajasthan"
   ]
@@ -43,6 +43,25 @@ const watershedNames = Object.values(watershedCategories).flat();
 // Global timestamp bounds (full data range)
 const GLOBAL_MIN_TIMESTAMP = 1704067260;
 const GLOBAL_MAX_TIMESTAMP = 1704372500;
+
+// Map initial view — never changes
+const INITIAL_CENTER = [79, 22.5];
+const INITIAL_ZOOM = 4;
+
+// Animation durations per selection type
+const coastalRivers = watershedCategories["Coastal Rivers"];
+const himalayanRivers = watershedCategories["Himalayan Rivers"];
+
+function getAnimationDuration(selectedWatersheds) {
+  if (selectedWatersheds.length === watershedNames.length) return 15000;
+  const isOnlyCoastal = selectedWatersheds.length === coastalRivers.length &&
+    coastalRivers.every(r => selectedWatersheds.includes(r));
+  const isOnlyHimalayan = selectedWatersheds.length === himalayanRivers.length &&
+    himalayanRivers.every(r => selectedWatersheds.includes(r));
+  if (isOnlyCoastal) return 5000;
+  if (isOnlyHimalayan) return 13000;
+  return 10000;
+}
 
 // IntroScreen Component
 function IntroScreen({ onEnter, isMapReady }) {
@@ -100,9 +119,7 @@ function IntroScreen({ onEnter, isMapReady }) {
 function App() {
   const mapContainer = useRef(null);
   const map = useRef(null);
-  const [lng] = useState(79);
-  const [lat] = useState(22.5);
-  const [zoom] = useState(4);
+  const pmtilesProtocolRef = useRef(null);
 
   // Intro screen state
   const [isIntroVisible, setIsIntroVisible] = useState(true);
@@ -123,7 +140,7 @@ function App() {
   const [isWatershedDrawerOpen, setIsWatershedDrawerOpen] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [showWatershedPulse, setShowWatershedPulse] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState([]); // All collapsed by default
+  const [expandedCategories, setExpandedCategories] = useState([]);
 
   // Toggle category expansion
   const toggleCategory = (category) => {
@@ -141,10 +158,8 @@ function App() {
     const allSelected = categoryWatersheds.every(w => selectedWatersheds.includes(w));
 
     if (allSelected) {
-      // Deselect all in this category
       setSelectedWatersheds(prev => prev.filter(w => !categoryWatersheds.includes(w)));
     } else {
-      // Select all in this category
       setSelectedWatersheds(prev => [...new Set([...prev, ...categoryWatersheds])]);
     }
   };
@@ -152,20 +167,26 @@ function App() {
   // Tooltip state for river click
   const [tooltip, setTooltip] = useState({ show: false, x: 0, y: 0, text: '' });
 
+  // Intro timer refs for cleanup on unmount
+  const introTimersRef = useRef([]);
+  useEffect(() => {
+    return () => introTimersRef.current.forEach(clearTimeout);
+  }, []);
+
   // Handle entering the map from intro screen
   const handleEnterMap = useCallback(() => {
     setIsIntroVisible(false);
     setHasEnteredMap(true);
-    // Start animation after a brief delay
-    setTimeout(() => {
+    const t1 = setTimeout(() => {
       setIsPlaying(true);
-      // Show watershed pulse after animation completes (15 seconds)
-      setTimeout(() => {
+      const t2 = setTimeout(() => {
         setShowWatershedPulse(true);
-        // Hide pulse after 6 seconds (4 complete 1.5s pulse cycles)
-        setTimeout(() => setShowWatershedPulse(false), 6000);
+        const t3 = setTimeout(() => setShowWatershedPulse(false), 6000);
+        introTimersRef.current.push(t3);
       }, 15000);
+      introTimersRef.current.push(t2);
     }, 300);
+    introTimersRef.current.push(t1);
   }, []);
 
   // Function to query features and find timestamp range for selected watersheds
@@ -183,9 +204,8 @@ function App() {
     }
 
     if (selectedWatersheds.length === 0) {
-      // Set a non-animating state if nothing is selected
       setMinTimestamp(GLOBAL_MIN_TIMESTAMP);
-      setMaxTimestamp(GLOBAL_MIN_TIMESTAMP + 1); // Avoids division by zero
+      setMaxTimestamp(GLOBAL_MIN_TIMESTAMP + 1);
       setTimeValue(GLOBAL_MIN_TIMESTAMP);
       setIsPlaying(false);
       return;
@@ -193,13 +213,12 @@ function App() {
 
     setIsCalculatingRange(true);
 
-    // Use a slight delay to allow the map to process the filter change first
     setTimeout(() => {
       if (!map.current) {
         setIsCalculatingRange(false);
         return;
       }
-      
+
       const features = map.current.querySourceFeatures('rivers-data', {
         sourceLayer: 'rivers',
         filter: ['in', ['get', 'ba_name'], ['literal', selectedWatersheds]]
@@ -220,28 +239,27 @@ function App() {
           if (timestamp > newMax) newMax = timestamp;
         }
       });
-      
+
       if (newMin !== Infinity && newMax !== -Infinity && newMin < newMax) {
         setMinTimestamp(newMin);
         setMaxTimestamp(newMax);
         setTimeValue(newMin);
         setIsPlaying(false);
       } else {
-        // Fallback if no valid range found
         setMinTimestamp(GLOBAL_MIN_TIMESTAMP);
         setMaxTimestamp(GLOBAL_MAX_TIMESTAMP);
         setTimeValue(GLOBAL_MIN_TIMESTAMP);
       }
-      
+
       setIsCalculatingRange(false);
-    }, 100); // A small delay can help ensure features are available after a filter change
+    }, 100);
   }, [selectedWatersheds]);
 
   // Update timestamp range when watershed selection changes
   useEffect(() => {
-    if (!hasEnteredMap) return; // Don't run on initial load
+    if (!hasEnteredMap) return;
     updateTimestampRange();
-  }, [selectedWatersheds, hasEnteredMap]);
+  }, [selectedWatersheds, hasEnteredMap, updateTimestampRange]);
 
   const handleWatershedToggle = (name) => {
     setSelectedWatersheds(prev =>
@@ -253,7 +271,7 @@ function App() {
   const openWatershedDrawer = () => {
     setIsAboutOpen(false);
     setIsWatershedDrawerOpen(true);
-    setShowWatershedPulse(false); // Stop pulse when user clicks
+    setShowWatershedPulse(false);
   };
 
   const openAbout = () => {
@@ -273,14 +291,13 @@ function App() {
     ? ((timeValue - minTimestamp) / (maxTimestamp - minTimestamp)) * 100
     : 0;
 
-  // Animation loop - use absolute time for consistent 12-second duration
+  // Animation loop
   const animationStartTime = useRef(null);
-  const timeValueRef = useRef(timeValue);
-
-  // Keep ref in sync with state
+  // Ref-based isPlaying to avoid stale closure in RAF callback
+  const isPlayingRef = useRef(isPlaying);
   useEffect(() => {
-    timeValueRef.current = timeValue;
-  }, [timeValue]);
+    isPlayingRef.current = isPlaying;
+  }, [isPlaying]);
 
   useEffect(() => {
     if (!isPlaying || selectedWatersheds.length === 0) {
@@ -289,32 +306,16 @@ function App() {
       return;
     }
 
+    const duration = getAnimationDuration(selectedWatersheds);
     let animationFrameId;
+
     const animate = (currentTimestamp) => {
-      if (!isPlaying) return;
+      if (!isPlayingRef.current) return;
 
       if (animationStartTime.current === null) {
         animationStartTime.current = currentTimestamp;
       }
 
-      const coastalRivers = watershedCategories["Coastal Rivers"]; // Changed key
-      const himalayanRivers = watershedCategories["Himalayan Rivers"];
-
-      const isOnlyCoastalSelected = selectedWatersheds.length === coastalRivers.length &&
-                                  coastalRivers.every(r => selectedWatersheds.includes(r));
-      const isOnlyHimalayanSelected = selectedWatersheds.length === himalayanRivers.length &&
-                                    himalayanRivers.every(r => selectedWatersheds.includes(r));
-
-      let duration;
-      if (selectedWatersheds.length === watershedNames.length) {
-        duration = 15000; // All rivers selected
-      } else if (isOnlyCoastalSelected) {
-        duration = 5000; // Only Coastal Rivers selected (changed from 7s to 5s)
-      } else if (isOnlyHimalayanSelected) {
-        duration = 13000; // Only Himalayan Rivers selected
-      } else {
-        duration = 10000; // Default for other selections
-      }
       const elapsed = currentTimestamp - animationStartTime.current;
       const progress = Math.min(elapsed / duration, 1);
 
@@ -333,27 +334,35 @@ function App() {
     animationFrameId = requestAnimationFrame(animate);
 
     return () => {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-      }
+      if (animationFrameId) cancelAnimationFrame(animationFrameId);
     };
-  }, [isPlaying, minTimestamp, maxTimestamp, selectedWatersheds.length]);
+  }, [isPlaying, minTimestamp, maxTimestamp, selectedWatersheds]);
 
   // Reset animation when watershed selection changes
   useEffect(() => {
     setTimeValue(GLOBAL_MIN_TIMESTAMP);
     setIsPlaying(false);
   }, [selectedWatersheds]);
-      
+
   // Map initialization
   useEffect(() => {
     if (map.current) return;
 
+    pmtilesProtocolRef.current = new Protocol();
+    maplibregl.addProtocol("pmtiles", (params) => {
+      return new Promise((resolve, reject) => {
+        pmtilesProtocolRef.current.tile(params, (err, data) => {
+          if (err) reject(err);
+          else resolve({ data });
+        });
+      });
+    });
+
     map.current = new maplibregl.Map({
       container: mapContainer.current,
       style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
-      center: [lng, lat],
-      zoom: zoom,
+      center: INITIAL_CENTER,
+      zoom: INITIAL_ZOOM,
       minZoom: 3,
       maxZoom: 12,
       antialias: false,
@@ -361,20 +370,6 @@ function App() {
       trackResize: true,
       maxTileCacheSize: 100,
       refreshExpiredTiles: false
-    });
-
-    const protocol = new Protocol();
-    maplibregl.addProtocol("pmtiles", (params) => {
-      return new Promise((resolve, reject) => {
-        const callback = (err, data) => {
-          if (err) {
-            reject(err);
-          } else {
-            resolve({ data });
-          }
-        };
-        protocol.tile(params, callback);
-      });
     });
 
     const pmtilesUrl = import.meta.env.PROD
@@ -401,8 +396,8 @@ function App() {
         type: 'fill',
         source: 'basins-data',
         paint: {
-          'fill-color': '#f59e0b',
-          'fill-opacity': 0.25
+          'fill-color': '#26bfff',
+          'fill-opacity': 0.2
         },
         filter: ['==', ['get', 'ba_name'], '']
       });
@@ -412,9 +407,9 @@ function App() {
         type: 'line',
         source: 'basins-data',
         paint: {
-          'line-color': '#ffffff',
-          'line-width': 0.5,
-          'line-opacity': 0.15
+          'line-color': '#26bfff',
+          'line-width': 0.8,
+          'line-opacity': 0.4
         },
         filter: ['==', ['get', 'ba_name'], '']
       });
@@ -468,8 +463,11 @@ function App() {
         }
       });
 
-      // Hide tooltip on mouse move
+      // Hide tooltip on mouse move or when leaving the canvas
       map.current.on('mousemove', () => {
+        setTooltip(prev => prev.show ? { ...prev, show: false } : prev);
+      });
+      map.current.getCanvas().addEventListener('mouseleave', () => {
         setTooltip(prev => prev.show ? { ...prev, show: false } : prev);
       });
 
@@ -490,7 +488,14 @@ function App() {
       map.current.resize();
       setMapReady(true);
     });
-  }, [lng, lat, zoom]);
+
+    return () => {
+      map.current?.remove();
+      map.current = null;
+      maplibregl.removeProtocol("pmtiles");
+      pmtilesProtocolRef.current = null;
+    };
+  }, []);
 
   // Resize map when intro is dismissed so the canvas fills the viewport correctly
   useEffect(() => {
@@ -503,7 +508,6 @@ function App() {
   const showBasinHighlight = (basinNames) => {
     if (!mapReady || !map.current || !isWatershedDrawerOpen) return;
 
-    // Support both single basin (string) and multiple basins (array)
     const filter = Array.isArray(basinNames)
       ? ['in', ['get', 'ba_name'], ['literal', basinNames]]
       : ['==', ['get', 'ba_name'], basinNames];
@@ -533,8 +537,7 @@ function App() {
   const handleCategoryHover = (category) => {
     setHoveredCategory(category);
     setHoveredWatershed(null);
-    const categoryBasins = watershedCategories[category];
-    showBasinHighlight(categoryBasins);
+    showBasinHighlight(watershedCategories[category]);
   };
 
   const handleCategoryLeave = () => {
@@ -568,27 +571,21 @@ function App() {
     if (!map.current || !map.current.getLayer('rivers-layer')) return;
 
     const now = Date.now();
-    // Throttle only during animation playback
     if (isPlaying && now - lastFilterUpdate.current < 60) return;
     lastFilterUpdate.current = now;
 
-    // Try to apply immediately
     if (!applyFilter()) {
-      // If map not ready, retry on next animation frame (more responsive than setTimeout)
       if (pendingFilterUpdate.current) cancelAnimationFrame(pendingFilterUpdate.current);
       pendingFilterUpdate.current = requestAnimationFrame(() => applyFilter());
     }
 
     return () => {
-      if (pendingFilterUpdate.current) {
-        cancelAnimationFrame(pendingFilterUpdate.current);
-      }
+      if (pendingFilterUpdate.current) cancelAnimationFrame(pendingFilterUpdate.current);
     };
   }, [timeValue, selectedWatersheds, isPlaying, applyFilter]);
 
   // Close panels when clicking outside
   const handleMapClick = (e) => {
-    // Don't close if clicking on UI elements
     if (e.target.closest('.control-btn') ||
         e.target.closest('.watershed-drawer') ||
         e.target.closest('.about-sheet') ||
@@ -669,7 +666,6 @@ function App() {
               </div>
             );
           })}
-
         </div>
       </div>
 
@@ -729,7 +725,6 @@ function App() {
           <button
             className={`play-btn ${isPlaying ? 'playing' : ''}`}
             onClick={() => {
-              // Don't allow play if no watersheds selected
               if (selectedWatersheds.length === 0) return;
               if (!isPlaying && timeValue >= maxTimestamp) {
                 setTimeValue(minTimestamp);

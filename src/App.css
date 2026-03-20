@@ -9,8 +9,9 @@
   --text-muted: rgba(255, 255, 255, 0.4);
   --icon-default: rgba(255, 255, 255, 0.7);
   --icon-active: rgba(255, 255, 255, 1);
-  --hover-bg: rgba(255, 255, 255, 0.06);
-  --active-bg: rgba(255, 255, 255, 0.1);
+  --hover-bg: rgba(255, 255, 255, 0.08);
+  --active-bg: rgba(255, 255, 255, 0.14);
+  --accent: #26bfff;
 }
 
 * {
@@ -272,10 +273,10 @@ html, body, #root, .App {
 
 @keyframes buttonPulse {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(79, 195, 199, 0.4);
+    box-shadow: 0 0 0 0 rgba(38, 191, 255, 0.4);
   }
   50% {
-    box-shadow: 0 0 0 12px rgba(79, 195, 199, 0);
+    box-shadow: 0 0 0 8px rgba(38, 191, 255, 0);
   }
 }
 
@@ -315,6 +316,11 @@ html, body, #root, .App {
 .control-btn.active {
   background: var(--active-bg);
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+.control-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
 }
 
 /* Layers icon (3 horizontal lines stacked) */
@@ -532,7 +538,7 @@ html, body, #root, .App {
 }
 
 .watershed-item.hovered {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(38, 191, 255, 0.08);
 }
 
 .watershed-item .checkbox {
@@ -574,7 +580,7 @@ html, body, #root, .App {
 }
 
 .watershed-item.hovered .watershed-name {
-  color: #f59e0b;
+  color: var(--accent);
 }
 
 /* ===== WATERSHED CATEGORIES ===== */
@@ -601,11 +607,11 @@ html, body, #root, .App {
 }
 
 .category-header.hovered {
-  background: rgba(245, 158, 11, 0.1);
+  background: rgba(38, 191, 255, 0.08);
 }
 
 .category-header.hovered .category-name {
-  color: #f59e0b;
+  color: var(--accent);
 }
 
 .category-arrow {
@@ -956,6 +962,11 @@ html, body, #root, .App {
   border-radius: 50%;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
   cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.timeline-track input[type="range"]::-moz-range-thumb:hover {
+  transform: scale(1.15);
 }
 
 .loading-indicator {
