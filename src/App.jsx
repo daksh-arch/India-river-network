@@ -508,12 +508,15 @@ function App() {
   const showBasinHighlight = (basinNames) => {
     if (!mapReady || !map.current || !isWatershedDrawerOpen) return;
 
-    const filter = Array.isArray(basinNames)
-      ? ['in', ['get', 'ba_name'], ['literal', basinNames]]
-      : ['==', ['get', 'ba_name'], basinNames];
+    const names = Array.isArray(basinNames) ? basinNames : [basinNames];
+    const filter = ['in', ['get', 'ba_name'], ['literal', names]];
 
     map.current.setFilter('basin-highlight', filter);
     map.current.setFilter('basin-highlight-outline', filter);
+
+    // Narrow rivers to only the hovered basin so it's visible over other rivers
+    hoverWatershedsRef.current = names;
+    applyFilter();
   };
 
   const hideBasinHighlight = () => {
@@ -521,6 +524,10 @@ function App() {
     const filter = ['==', ['get', 'ba_name'], ''];
     map.current.setFilter('basin-highlight', filter);
     map.current.setFilter('basin-highlight-outline', filter);
+
+    // Restore full river filter
+    hoverWatershedsRef.current = null;
+    applyFilter();
   };
 
   const handleWatershedHover = (name) => {
@@ -548,6 +555,8 @@ function App() {
   // Filter update for rivers
   const lastFilterUpdate = useRef(0);
   const filterRef = useRef({ timeValue, selectedWatersheds });
+  // When a basin is hovered in the drawer, narrow the river filter to just that basin
+  const hoverWatershedsRef = useRef(null);
 
   useEffect(() => {
     filterRef.current = { timeValue, selectedWatersheds };
@@ -558,10 +567,11 @@ function App() {
   const applyFilter = useCallback((timeOverride) => {
     if (!map.current || !map.current.getLayer('rivers-layer')) return false;
     const t = timeOverride !== undefined ? timeOverride : filterRef.current.timeValue;
+    const watersheds = hoverWatershedsRef.current ?? filterRef.current.selectedWatersheds;
     const filter = [
       'all',
       ['<=', ['get', 'timestamp'], t],
-      ['in', ['get', 'ba_name'], ['literal', filterRef.current.selectedWatersheds]]
+      ['in', ['get', 'ba_name'], ['literal', watersheds]]
     ];
     map.current.setFilter('rivers-layer', filter);
     return true;
